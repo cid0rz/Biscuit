@@ -72,6 +72,9 @@ TEQ/TGT/TGE/TLT/TLE *<SX>/<INT>
     test if the Number Register is equal/greater/greater_or_equal
     smaller/smaller_or_equal compared to a number
     example: TEQ 10
+    For equality there is also the posibility to compare with the text register,
+    a string must be used in the comparison and the text register will be used.
+    example: TEQ "AB"
 
 JMP *<SX>/<INT>/<LB>
     jumps to the provided line or label
@@ -478,7 +481,7 @@ class StackEngineer(BaseGame):
                 return
             
             operand = None
-            read_pattern = r'^\*?S\d+$'
+            read_pattern = r'^\*S\d+$'
             pop_pattern =  r'^S\d+$'
             if re.match(read_pattern, val):
                 operand = self.stacks[val[1:]].read(0)
@@ -537,7 +540,16 @@ class StackEngineer(BaseGame):
                     if tst:
                         self.test_register.set('TRUE')
                 except ValueError as ve:
-                    self.show_error(error_msg=str(ve))
+                    if operand[0] == '"':
+                        tst = self.text_register.get() == operand.strip('"')
+                        if tst:
+                            self.test_register.set('TRUE')
+                    elif operand[0] == "'":
+                        tst = self.text_register.get() == operand.strip("'")
+                        if tst:
+                            self.test_register.set('TRUE')
+                    else:
+                        self.show_error(error_msg=str(ve))
             elif inst == "TGT":
                 try:
                     operand = int(operand)
