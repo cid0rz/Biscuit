@@ -68,7 +68,11 @@ RCL/RCR *<SX>/<INT>
     remove some characters from the left/right of the text register
     example: RCL 2
 
-TEQ/TGT/TGE/TLT/TLE *<SX>/<INT>
+TEQ <R> *<SX>/<INT>/<TX>
+    check for equality of a register with a number/string.
+
+
+TGT/TGE/TLT/TLE *<SX>/<INT>
     test if the Number Register is equal/greater/greater_or_equal
     smaller/smaller_or_equal compared to a number
     example: TEQ 10
@@ -400,23 +404,46 @@ class StackEngineer(BaseGame):
         self.editor.clear()
         self.editor.insert("end", self.solution_sample)
 
+    def get_stack_value(self, st):
+        val = st
+        operand = None
+        read_pattern = r'^\*S\d+$'
+        pop_pattern =  r'^S\d+$'
+        if re.match(read_pattern, val):
+            operand = self.stacks[val[1:]].read(0)
+        elif re.match(pop_pattern, val):
+            operand = self.stacks[val].pop()
+        elif val in self.labels:
+            operand = self.labels[val]
+        else:
+            operand = val
+
+        return operand
+
     def interpret_line(self, line):
-        """get a line of code an process it"""
+        """get a line of code and process it"""
         if line.startswith("#"):
             self.line_pos +=1
             return
         line = line.split("#",1)[0]
         linelist = line.upper().split()
         
+        
         #print(linelist)
         if len(linelist) == 0:
-            pass
-        elif len(linelist) == 1 and linelist[0][-1] == ":":
+            self.line_pos += 1
+            return
+        if len(linelist) == 1 and linelist[0][-1] == ":":
             self.labels[linelist[0][:-1]] = self.line_pos
             #print(self.labels)
-        elif len(linelist) == 3:
-            inst = linelist[0] #command to execute
-            if inst == "PUSH":
+            self.line_pos += 1
+            return
+
+        inst = linelist[0]
+
+            
+        if inst == "PUSH":
+            if len(linelist) == 3:
                 stack_n = linelist[2] #stack to push to
                 reg = linelist[1] # register to push from
                 if stack_n not in self.stacks:
@@ -430,8 +457,11 @@ class StackEngineer(BaseGame):
                     elif reg == 'TR':
                         val = self.text_register.get()
                         self.stacks[stack_n].push(val)
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
 
-            elif inst == "POP":
+        elif inst == "POP":
+            if len(linelist) == 3:
                 stack_n = linelist[1] #stack to pop from
                 reg = linelist[2] #register to pop into
                 if stack_n not in self.stacks:
@@ -446,8 +476,11 @@ class StackEngineer(BaseGame):
                             self.show_error(error_msg="Value must be a number for the number register")
                     elif reg == "TR":
                         self.text_register.set(val)
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
 
-            elif inst == "SWP":
+        elif inst == "SWP":
+            if len(linelist) == 3:
                 stack_n = linelist[1] #stack to operate in
                 if linelist[2] == 'NR':
                     linelist[2] = self.number_register.get()
@@ -464,44 +497,44 @@ class StackEngineer(BaseGame):
                         self.show_error(error_msg=f"index {idx} not found in stack {stack_n}")
                     st.swap(idx)
                     self.cost += 1
-                
-                
+                   
             else:
                 self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+            
 
-        elif len(linelist) == 2:
-            inst = linelist[0] #command to execute
-            val = linelist[1] #argument of the command
-
-            if inst == "LEN":
+        elif inst == "LEN":
+            if len(linelist) == 2:
+                val = linelist[1] #argument of the command
                 st = val
+                if st not in self.stacks:
+                    self.show_error(error_msg=f"{st} is not a valid stack")
                 self.number_register.set(len(self.stacks[st]))
                 self.line_pos += 1
                 self.cost += 1
                 return
-            
-            operand = None
-            read_pattern = r'^\*S\d+$'
-            pop_pattern =  r'^S\d+$'
-            if re.match(read_pattern, val):
-                operand = self.stacks[val[1:]].read(0)
-            elif re.match(pop_pattern, val):
-                operand = self.stacks[val].pop()
-            elif val in self.labels:
-                operand = self.labels[val]
             else:
-                operand = val
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+
                 
-            if inst == "ADD":
+        elif inst == "ADD":
+            if len(linelist) == 2:
                 #add a number to the NR register
+                val = linelist[1] #argument of the command
+                operand = self.get_stack_value(val)
+
                 try:
                     operand = int(operand)
                     nr = int(self.number_register.get()) + operand
                     self.number_register.set(nr)
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
                     
-            elif inst == "SUB":
+        elif inst == "SUB":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 #substract a number from the NR register
                 try:
                     operand = int(operand)
@@ -509,8 +542,13 @@ class StackEngineer(BaseGame):
                     self.number_register.set(nr)
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
                 
-            elif inst == "MUL":
+        elif inst == "MUL":
+            val = linelist[1]
+            operand = self.get_stack_value(val)
+            if len(linelist) == 2:
                 #multiply the NR register by a number
                 try:
                     operand = int(operand)
@@ -518,8 +556,13 @@ class StackEngineer(BaseGame):
                     self.number_register.set(nr)
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
                     
-            elif inst == "DIV":
+        elif inst == "DIV":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 #perform integer division of the NR register by a number
                 try:
                     operand = int(operand)
@@ -527,30 +570,54 @@ class StackEngineer(BaseGame):
                     self.number_register.set(nr)
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
 
-            elif inst == "CCL":
+        elif inst == "CCL":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 self.text_register.set(str(operand).strip('"') + self.text_register.get())
-            elif inst == "CCR":
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+        elif inst == "CCR":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 self.text_register.set(self.text_register.get() + str(operand).strip('"'))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
             
-            elif inst == "TEQ":
-                try:
-                    operand = int(operand)
-                    tst = int(self.number_register.get()) == operand
-                    if tst:
-                        self.test_register.set('TRUE')
-                except ValueError as ve:
-                    if operand[0] == '"':
-                        tst = self.text_register.get() == operand.strip('"')
+        elif inst == "TEQ":
+            if len(linelist) == 3:
+                reg = linelist[1]
+                val = linelist[2]
+                operand = self.get_stack_value(val)
+
+                if reg == "NR":
+                    try:
+                        operand = int(operand)
+                        tst = int(self.number_register.get()) == operand
                         if tst:
                             self.test_register.set('TRUE')
-                    elif operand[0] == "'":
-                        tst = self.text_register.get() == operand.strip("'")
-                        if tst:
-                            self.test_register.set('TRUE')
-                    else:
+                    except ValueError as ve:
                         self.show_error(error_msg=str(ve))
-            elif inst == "TGT":
+
+                elif reg == "TR":
+                    tst = self.text_register.get() == operand
+                    if tst:
+                            self.test_register.set('TRUE')
+                
+                else:
+                    self.show_error(error_msg=f"Wrong register {reg}")
+                    
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+                
+        elif inst == "TGT":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 try:
                     operand = int(operand)
                     tst = int(self.number_register.get()) > operand
@@ -558,7 +625,13 @@ class StackEngineer(BaseGame):
                         self.test_register.set('TRUE')
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
-            elif inst == "TGE":
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+                
+        elif inst == "TGE":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 try:
                     operand = int(operand)
                     tst = int(self.number_register.get()) >= operand
@@ -566,8 +639,13 @@ class StackEngineer(BaseGame):
                         self.test_register.set('TRUE')
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
-            elif inst == "TLT":
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
                 
+        elif inst == "TLT":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 try:
                     operand = int(operand)
                     tst = int(self.number_register.get()) < operand
@@ -575,16 +653,27 @@ class StackEngineer(BaseGame):
                         self.test_register.set('TRUE')
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
 
-            elif inst == "TLE":
-                 try:
+        elif inst == "TLE":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
+                try:
                     operand = int(operand)
                     tst = int(self.number_register.get()) <= operand
                     if tst:
                         self.test_register.set('TRUE')
-                 except ValueError as ve:
+                except ValueError as ve:
                     self.show_error(error_msg=str(ve))
-            elif inst == "JMP":
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+                
+        elif inst == "JMP":
+            val = linelist[1]
+            operand = self.get_stack_value(val)
+            if len(linelist) == 2:
                 if self.test_register.get() != 'TRUE':
                     self.line_pos += 1
                     return
@@ -599,33 +688,39 @@ class StackEngineer(BaseGame):
                     
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+                    
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
 
-            elif inst == "RCL":
+        elif inst == "RCL":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 try:
                     operand = int(operand)
                     self.text_register.set(self.text_register.get()[operand:])
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
                 
-            elif inst == "RCR":
+        elif inst == "RCR":
+            if len(linelist) == 2:
+                val = linelist[1]
+                operand = self.get_stack_value(val)
                 try:
                     operand = int(operand)
                     self.text_register.set(self.text_register.get()[:-operand])
                 except ValueError as ve:
                     self.show_error(error_msg=str(ve))
+            else:
+                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
                     
-            else:
-                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
 
-        elif len(linelist) == 1:
-            inst = linelist[0]
-
-            if inst == "CLNR":
-                self.number_register.set(0)
-            elif inst == "CLTR":
-                self.text_register.set("")
-            else:
-                self.show_error(error_msg=f"Incorrect number of parameters for funcion {inst}")
+        elif inst == "CLNR":
+            self.number_register.set(0)
+        elif inst == "CLTR":
+            self.text_register.set("")
+        else:
+            self.show_error(error_msg=f"Unknow command {inst}")
             
         self.line_pos += 1
         self.cost += 1
