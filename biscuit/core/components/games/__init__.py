@@ -11,7 +11,7 @@ from .tetris import Tetris
 from .ttt import TicTacToe
 from .whoops import Whoops
 
-games = {i.name:i for i in (Tetris, GameOfLife, Pong, TicTacToe, Snake, Minesweeper)}
+games = {i.name:i for i in (Tetris, GameOfLife, Pong, TicTacToe, Snake, StackEngineer, Minesweeper)}
 
 
 def get_games(base):
